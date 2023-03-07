@@ -1,35 +1,107 @@
 import React, { useEffect, useState, useRef } from "react";
+import { useEventListener, useCreation, useReactive, useUpdate } from "./hooks";
+import { throttle } from "./util"
 
-const pageSize = 50
-let offset = 0
+const pageSize = 50;
+let offset = 0;
 
-const SliceHOC = (Component: any) => (props: { list: any[] }) => {
-    const [ data, setData ] = useState<any[]>([])
-    const { list, ...extraProps } = props;
+const HOC = (Component: any) => (props: { list: unknown[] }) => {
+    const { list } = props;
+    const state = useReactive({
+        data: [] as unknown[], //渲染的数据
+        scrollAllHeight: "100vh", // 容器的初始高度
+        listHeight: 0, //列表高度
+        itemHeight: 0, // 子组件的高度
+        renderCount: 0, // 需要渲染的数量
+        bufferCount: 6, // 缓冲的个数
+        start: 0, // 起始索引
+        end: 0, // 终止索引
+        currentOffset: 0, // 偏移量
+    });
+
+    const allRef = useRef<any>(null); // 容器的ref
+    const scrollRef = useRef<any>(null); // 检测滚动
 
     useEffect(() => {
-        sliceTime()
-    }, []);
+        // 子列表高度
+        const ItemHeight = 65;
 
-    const sliceTime = () => {
-        if (data.length >= list.length) {
-            return
-        }
-        const tempData = list.slice(offset * pageSize, (offset + 1) * pageSize)
-        setTimeout(() => {
-            setData((prevData: any[]) => [...prevData, ...tempData])
-            offset += 1
-            sliceTime()
-        }, 1000)
-    }
+        // 容器的高度
+        const scrollAllHeight = allRef.current.offsetHeight;
 
-    if (list.length === 0) {
-        return null
-    }
-    
-    return (<>
-    { data.map((item:any) =>  <Component id={item} {...extraProps} key={item} />)}
-    </>)
+        // 列表高度
+        const listHeight = ItemHeight * list.length;
+
+        //渲染节点的数量
+        const renderCount =
+            Math.ceil(scrollAllHeight / ItemHeight) + state.bufferCount;
+
+        state.renderCount = renderCount;
+        state.end = renderCount + 1;
+        state.listHeight = listHeight;
+        state.itemHeight = ItemHeight;
+        state.data = list.slice(state.start, state.end);
+    }, [allRef]);
+
+    useCreation(() => {
+        state.data = list.slice(state.start, state.end);
+    }, [state.start]);
+
+    useEventListener(
+        "scroll",
+        throttle(() => {
+            // 顶部高度
+            const { scrollTop } = scrollRef.current;
+            state.start = Math.floor(scrollTop / state.itemHeight);
+            state.end = Math.floor(
+                scrollTop / state.itemHeight + state.renderCount + 1
+            );
+            state.currentOffset = scrollTop - (scrollTop % state.itemHeight);
+        }, 200),
+        scrollRef.current
+    );
+
+    return (
+        <div ref={allRef}>
+            <div
+                style={{
+                    height: state.scrollAllHeight,
+                    overflow: "scroll",
+                    position: "relative",
+                }}
+                ref={scrollRef}
+            >
+                {/* 占位，列表的总高度，用于生成滚动条 */}
+                <div
+                    style={{
+                        height: state.listHeight,
+                        position: "absolute",
+                        left: 0,
+                        top: 0,
+                        right: 0,
+                    }}
+                ></div>
+                {/* 内容区域 */}
+                <div
+                    style={{
+                        transform: `translate3d(0, ${state.currentOffset}px, 0)`,
+                        position: "relative",
+                        left: 0,
+                        top: 0,
+                        right: 0,
+                    }}
+                >
+                    {/* 渲染区域 */}
+                    {state.data.map((item: any) => (
+                        <div key={item}>
+                            {/* 子组件 */}
+                            <Component id={item} {...props} />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
 };
 
-export default SliceHOC;
+export default HOC;

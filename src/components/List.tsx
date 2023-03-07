@@ -16,31 +16,27 @@ const Item: React.FC<{ id: number }> = ({
     );
 };
 
-const ListItem = ({ list }: { list: any[] }) => list.map((item: any) => <Item id={item} key={item} />)
+
 
 const HocList = SliceHoc(Item)
 
 const Index: React.FC<any> = (props) => {
-    const [flag, setFlag] = useState<boolean>(false);
-    const [list, setList] = useState<Array<number>>([]);
+    const [list, setList] = useState<Array<number>>([])
+
+    useEffect(() => {
+      let arr:number[] = [] 
+      for(let i = 0; i < 500; i++){
+        arr.push(i)
+      }
+      setList(arr)
+    }, [])
+
+    if(list.length === 0) return <></>
+
 
     return (
         <div>
-            <Button
-                onClick={async () => {
-                    setFlag(true);
-                    let arr: number[] = [];
-                    console.time("all")
-                    for (let i = 0; i < 5000; i++) {
-                        arr.push(i);
-                    }
-                    await setList(arr);
-                    console.timeEnd("all")
-                }}
-            >
-                渲染
-            </Button>
-            {flag && <HocList list={list} />}
+           <HocList list={list} />
         </div>
     );
 };
